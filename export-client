@@ -1,22 +1,27 @@
-/**
- * SCRIPT: Exportação SharePoint para Excel (Formato XML Spreadsheet 2003)
- * MOTIVO: Bypassing de CSP (Content Security Policy) que bloqueia bibliotecas externas.
- */
-
 (function() {
+    const generateFileName = () => {
+        const date = new Date().toISOString().slice(0, 10);
+        
+        let clientName = window.location.hostname.split('.')[0];
+        clientName = clientName.charAt(0).toUpperCase() + clientName.slice(1); // Capitaliza
+
+        let projectName = (_spPageContextInfo.webTitle || "Site").replace(/[^a-zA-Z0-9\-_]/g, "_");
+
+        return `${date}_${clientName}_${projectName}_Mapeamento.xls`;
+    };
+
     // --- Configurações ---
     const config = {
         debugOn: true,
-        fileName: 'Mapeamento_SharePoint_Final.xls', // Salva como .xls para o Excel abrir direto
+        fileName: generateFileName(), // Nome gerado automaticamente
         includeSystemFields: false
     };
 
-    // --- Helpers de Log ---
+    // --- Helpers ---
     const log = (msg) => {
         if (config.debugOn) console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
     };
 
-    // --- Helper de Sanitização XML (Crucial para não quebrar o arquivo) ---
     const escapeXML = (str) => {
         if (!str) return "";
         return String(str)
@@ -27,7 +32,6 @@
             .replace(/'/g, '&apos;');
     };
 
-    // --- 1. Requisições SharePoint ---
     const getJson = (url) => {
         return fetch(url, {
             headers: { "Accept": "application/json; odata=verbose" }
@@ -37,13 +41,13 @@
         });
     };
 
-    // --- 2. Lógica Principal ---
+    // --- Execução Principal ---
     const runExport = async () => {
         try {
-            log("🚀 Iniciando extração (Modo XML Nativo)...");
+            log(`🚀 Iniciando. Arquivo será salvo como: ${config.fileName}`);
             const siteUrl = _spPageContextInfo.webAbsoluteUrl;
 
-            // Buscar Listas
+            // 1. Buscar Listas
             const listsData = await getJson(`${siteUrl}/_api/web/lists?$select=Id,Title,Description,EntityTypeName,BaseType,Hidden`);
             const allLists = listsData.d.results.filter(l => !l.Hidden && l.EntityTypeName !== "OData__x005f_catalogs");
             
@@ -52,7 +56,7 @@
             const mappedData = [];
             let processedCount = 0;
 
-            // Processar campos
+            // 2. Iterar Listas e Buscar Campos
             for (const list of allLists) {
                 try {
                     const fieldsUrl = `${siteUrl}/_api/web/lists(guid'${list.Id}')/fields?$select=Title,InternalName,TypeAsString,Description,Hidden,Required`;
@@ -74,45 +78,37 @@
                     });
                     
                     processedCount++;
-                    if(processedCount % 10 === 0) log(`...Lendo listas: ${processedCount}/${allLists.length}`);
+                    if(processedCount % 5 === 0) log(`...Processando: ${processedCount}/${allLists.length}`);
 
                 } catch (err) {
-                    console.error(`Erro na lista ${list.Title}`, err);
+                    console.error(`Erro ao ler lista: ${list.Title}`, err);
                 }
             }
 
-            log(`✅ Total de linhas para exportar: ${mappedData.length}`);
-            log("⚙️ Gerando XML do Excel...");
+            log(`✅ Dados compilados. Gerando Excel XML...`);
 
-            // --- 3. Construção do Arquivo XML (Excel) ---
-            
-            // Cabeçalho do Arquivo XML (Define estilos: Negrito, Wrap Text)
+            // 3. Construção do XML (Excel 2003 Format)
             let xmlContent = `<?xml version="1.0"?>
             <?mso-application progid="Excel.Sheet"?>
             <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-             xmlns:o="urn:schemas-microsoft-com:office:office"
-             xmlns:x="urn:schemas-microsoft-com:office:excel"
-             xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
-             xmlns:html="http://www.w3.org/TR/REC-html40">
+             xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
              <Styles>
               <Style ss:ID="Default" ss:Name="Normal">
                <Alignment ss:Vertical="Top" ss:WrapText="1"/>
-               <Borders/>
-               <Font ss:FontName="Arial" x:Family="Swiss" ss:Size="10" ss:Color="#000000"/>
-               <Interior/>
+               <Font ss:FontName="Arial" ss:Size="10"/>
               </Style>
               <Style ss:ID="sHeader">
                <Alignment ss:Vertical="Top" ss:WrapText="1"/>
-               <Font ss:FontName="Arial" x:Family="Swiss" ss:Size="10" ss:Color="#000000" ss:Bold="1"/>
-               <Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/>
+               <Font ss:FontName="Arial" ss:Size="10" ss:Bold="1"/>
+               <Interior ss:Color="#EFEFEF" ss:Pattern="Solid"/>
                <Borders>
                 <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
                </Borders>
               </Style>
              </Styles>
              <Worksheet ss:Name="Mapeamento">
-              <Table x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="15">
-               <Column ss:Width="150"/> <Column ss:Width="200"/> <Column ss:Width="80"/>  <Column ss:Width="150"/> <Column ss:Width="150"/> <Column ss:Width="100"/> <Column ss:Width="60"/>  <Column ss:Width="250"/> <Row ss:AutoFitHeight="0" ss:Height="20">
+              <Table x:FullColumns="1" x:FullRows="1">
+               <Column ss:Width="150"/> <Column ss:Width="200"/> <Column ss:Width="80"/>  <Column ss:Width="150"/> <Column ss:Width="150"/> <Column ss:Width="100"/> <Column ss:Width="60"/>  <Column ss:Width="250"/> <Row>
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Nome da Lista/Bib</Data></Cell>
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Finalidade</Data></Cell>
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Tipo da Lista</Data></Cell>
@@ -123,9 +119,8 @@
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Observações</Data></Cell>
                </Row>`;
 
-            // Corpo dos Dados
             mappedData.forEach(row => {
-                xmlContent += `<Row ss:AutoFitHeight="0">
+                xmlContent += `<Row>
                     <Cell><Data ss:Type="String">${escapeXML(row.ListName)}</Data></Cell>
                     <Cell><Data ss:Type="String">${escapeXML(row.ListPurpose)}</Data></Cell>
                     <Cell><Data ss:Type="String">${escapeXML(row.ListType)}</Data></Cell>
@@ -137,14 +132,11 @@
                 </Row>`;
             });
 
-            xmlContent += `</Table>
-             </Worksheet>
-            </Workbook>`;
+            xmlContent += `</Table></Worksheet></Workbook>`;
 
-            // --- 4. Download ---
+            // 4. Download Seguro
             const blob = new Blob([xmlContent], { type: 'application/vnd.ms-excel' });
             
-            // Compatibilidade IE/Edge vs Chrome/Firefox
             if (navigator.msSaveBlob) { 
                 navigator.msSaveBlob(blob, config.fileName);
             } else {
@@ -158,11 +150,11 @@
                 URL.revokeObjectURL(url);
             }
 
-            log("🎉 Sucesso! Arquivo gerado.");
-            if(typeof swal !== 'undefined') swal("Sucesso", "Download iniciado!", "success");
+            log("🎉 Sucesso! Download iniciado.");
+            if(typeof swal !== 'undefined') swal("Sucesso", "Relatório gerado: " + config.fileName, "success");
 
         } catch (error) {
-            console.error("Erro fatal:", error);
+            console.error("❌ Erro fatal:", error);
             alert("Erro ao gerar relatório. Verifique o console.");
         }
     };
