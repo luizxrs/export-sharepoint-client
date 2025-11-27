@@ -120,7 +120,6 @@
               <Table x:FullColumns="1" x:FullRows="1" ss:DefaultRowHeight="15">
                <Column ss:Width="150"/> <Column ss:Width="200"/> <Column ss:Width="80"/>  <Column ss:Width="150"/> <Column ss:Width="150"/> <Column ss:Width="100"/> <Column ss:Width="60"/>  <Column ss:Width="250"/> <Row ss:AutoFitHeight="0" ss:Height="20">
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Nome da Lista/Bib</Data></Cell>
-                <Cell ss:StyleID="sHeader"><Data ss:Type="String">Finalidade</Data></Cell>
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Tipo da Lista</Data></Cell>
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">Campo (Display Name)</Data></Cell>
                 <Cell ss:StyleID="sHeader"><Data ss:Type="String">InternalName (Código)</Data></Cell>
@@ -133,7 +132,6 @@
             mappedData.forEach(row => {
                 xmlContent += `<Row ss:AutoFitHeight="0">
                     <Cell><Data ss:Type="String">${escapeXML(row.ListName)}</Data></Cell>
-                    <Cell><Data ss:Type="String">${escapeXML(row.ListPurpose)}</Data></Cell>
                     <Cell><Data ss:Type="String">${escapeXML(row.ListType)}</Data></Cell>
                     <Cell><Data ss:Type="String">${escapeXML(row.FieldTitle)}</Data></Cell>
                     <Cell><Data ss:Type="String">${escapeXML(row.InternalName)}</Data></Cell>
